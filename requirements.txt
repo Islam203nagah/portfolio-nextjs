@@ -1,0 +1,29 @@
+=======================================
+PROJECT REQUIREMENTS
+Full-Stack Portfolio & Admin Dashboard
+=======================================
+
+
+I. Public-Facing Website
+------------------------
+- Display dynamic profile, experience, projects, and skills.
+- Functional contact form for visitor inquiries.
+- Fully responsive design for desktop and mobile.
+- Switchable light and dark mode themes.
+
+
+II. Admin Dashboard
+-------------------
+- Secure, password-protected administrator login.
+- Full CRUD (Create, Read, Update, Delete) for all portfolio sections.
+- Intuitive tab-based UI for managing content.
+- Functionality to change the admin password securely.
+
+
+III. Technical Specifications
+-----------------------------
+- Frontend: Next.js, React, TypeScript, Tailwind CSS
+- Backend: Next.js API Routes
+- Database: MongoDB
+- Authentication: JWT (JSON Web Tokens)
+- Email: Nodemailer for contact form submissions
