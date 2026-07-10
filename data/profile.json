@@ -1,25 +1,70 @@
 {
-  "name": "Mohamed bn Sultan",
-  "title": "Petroleum Engineer (Fresh Graduate)",
-  "location": "Asyut, Egypt",
-  "email": "",
-  "linkedIn": "https://www.linkedin.com/in/mohamed-bn-sultan-777274351/",
-  "summary": "Freshly graduated petroleum engineer interested in petroleum refining, oil & gas, and process safety.",
-  "skills": ["Petroleum Engineering", "Process Safety", "Oil & Gas", "Refining Processes"],
+  "name": "Mohamed Sultan Ali",
+  "title": "Chemical Engineer",
+  "location": "Mallawy, Minia",
+  "email": "m7med949@gmail.com",
+  "phone": "+20 109 967 1221",
+  "linkedIn": "",
+  "summary": "I am a chemical engineer specializing in petrochemicals, with a strong academic background and practical training experience at leading petroleum companies. With expertise in oil and natural gas processing and a solid foundation in technical skills, I am eager to contribute my knowledge and drive to a dynamic company that fosters innovation in the chemical industry.",
+  "skills": ["Petrochemical Engineering", "Oil & Gas Processing", "Process Safety", "Refinery Operations"],
   "experience": [
     {
       "company": "Egyptian Projects Operation and Maintenance (EPROM)",
-      "role": "Petroleum Engineer",
-      "period": "2024 — Present",
+      "role": "Chemical Engineer",
+      "period": "Aug 2025 — Present",
       "description": "Working with EPROM on operations and maintenance projects related to petroleum refining and oil & gas processes."
     }
   ],
-  "projects": [
+  "trainings": [
     {
-      "name": "Undergraduate Projects",
-      "description": "Academic and practical projects in petroleum engineering and process safety.",
-      "link": "#projects"
+      "company": "Pharaonic Petroleum Company (PhPC)",
+      "date": "21 – 28 July 2024",
+      "description": "Intensive training program on petroleum operations."
+    },
+    {
+      "company": "Khalda Petroleum Company",
+      "date": "26 Aug – 2 Sep 2023",
+      "description": "Training on oil and gas field operations."
+    },
+    {
+      "company": "General Petroleum Company (GPC)",
+      "date": "15 – 21 Aug 2023",
+      "description": "Training on petroleum exploration and production processes."
     }
   ],
-  "photo": ""
+  "education": [
+    {
+      "degree": "Bachelor's in Petrochemical Engineering",
+      "institution": "Faculty of Engineering, Minia University",
+      "year": "2019 – 2024",
+      "gpa": "3.54 / 4.0 — Very Good with Honors (88%)",
+      "project": "Delayed Coker Unit"
+    }
+  ],
+  "achievements": [
+    {
+      "title": "3rd Place in the Department",
+      "description": "Achieved 3rd place in the Petrochemical Engineering department."
+    },
+    {
+      "title": "Excellent Grade on Graduation Project",
+      "description": "Received an excellent grade on the graduation project about Delayed Coker Unit."
+    }
+  ],
+  "languages": [
+    {
+      "name": "Arabic",
+      "level": "Native"
+    },
+    {
+      "name": "English",
+      "level": "B2"
+    }
+  ],
+  "maritalStatus": "Married",
+  "dateOfBirth": "8 December 1999",
+  "nationality": "Egyptian",
+  "militaryStatus": "Exempted",
+  "photo": "",
+  "projects": []
 }

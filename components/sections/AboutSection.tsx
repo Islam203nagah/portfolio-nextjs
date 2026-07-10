@@ -1,5 +1,5 @@
 import type { Profile } from "../../types/profile";
-import { User, MapPin, Briefcase } from "lucide-react";
+import { User, MapPin, Briefcase, Cake, Flag, Heart, Shield } from "lucide-react";
 
 export function AboutSection({ profile }: { profile: Profile }) {
   const currentExperience = profile.experience?.[0];
@@ -30,6 +30,42 @@ export function AboutSection({ profile }: { profile: Profile }) {
             </p>
           </div>
         </div>
+        {profile.nationality && (
+          <div className="flex items-start gap-2.5">
+            <Flag className="h-5 w-5 text-violet-500 mt-0.5" />
+            <div>
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Nationality</h3>
+              <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{profile.nationality}</p>
+            </div>
+          </div>
+        )}
+        {profile.dateOfBirth && (
+          <div className="flex items-start gap-2.5">
+            <Cake className="h-5 w-5 text-violet-500 mt-0.5" />
+            <div>
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Date of Birth</h3>
+              <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{profile.dateOfBirth}</p>
+            </div>
+          </div>
+        )}
+        {profile.maritalStatus && (
+          <div className="flex items-start gap-2.5">
+            <Heart className="h-5 w-5 text-violet-500 mt-0.5" />
+            <div>
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Marital Status</h3>
+              <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{profile.maritalStatus}</p>
+            </div>
+          </div>
+        )}
+        {profile.militaryStatus && (
+          <div className="flex items-start gap-2.5">
+            <Shield className="h-5 w-5 text-violet-500 mt-0.5" />
+            <div>
+              <h3 className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Military Status</h3>
+              <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">{profile.militaryStatus}</p>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

@@ -11,6 +11,30 @@ export type ProjectItem = {
   link?: string;
 };
 
+export type EducationItem = {
+  degree: string;
+  institution: string;
+  year: string;
+  gpa: string;
+  project: string;
+};
+
+export type TrainingItem = {
+  company: string;
+  date: string;
+  description: string;
+};
+
+export type AchievementItem = {
+  title: string;
+  description: string;
+};
+
+export type LanguageItem = {
+  name: string;
+  level: string;
+};
+
 export type Profile = {
   name: string;
   title: string;
@@ -23,4 +47,12 @@ export type Profile = {
   experience: ExperienceItem[];
   projects: ProjectItem[];
   photo?: string;
+  education: EducationItem[];
+  trainings: TrainingItem[];
+  achievements: AchievementItem[];
+  languages: LanguageItem[];
+  maritalStatus?: string;
+  dateOfBirth?: string;
+  nationality?: string;
+  militaryStatus?: string;
 };

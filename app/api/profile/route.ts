@@ -17,6 +17,14 @@ export async function GET() {
         skills: [],
         experience: [],
         projects: [],
+        education: [],
+        trainings: [],
+        achievements: [],
+        languages: [],
+        maritalStatus: "",
+        dateOfBirth: "",
+        nationality: "",
+        militaryStatus: "",
       });
     }
 
@@ -39,6 +47,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid profile payload" }, { status: 400 });
     }
 
+    const sanitizeStrings = (arr: unknown[]) =>
+      arr.filter((s): s is string => typeof s === "string");
+
+    const sanitizeObjects = (arr: unknown[], fields: string[]) =>
+      arr.filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+        .map((item: Record<string, any>) => {
+          const obj: Record<string, string> = {};
+          for (const f of fields) obj[f] = typeof item[f] === "string" ? item[f] : "";
+          return obj;
+        });
+
     const sanitizedPayload = {
       name: typeof payload.name === "string" ? payload.name.trim() : "",
       title: typeof payload.title === "string" ? payload.title.trim() : "",
@@ -47,23 +66,18 @@ export async function POST(request: Request) {
       linkedIn: typeof payload.linkedIn === "string" ? payload.linkedIn.trim() : "",
       phone: typeof payload.phone === "string" ? payload.phone.trim() : "",
       summary: typeof payload.summary === "string" ? payload.summary.trim() : "",
-      skills: Array.isArray(payload.skills) ? payload.skills.filter((skill: unknown): skill is string => typeof skill === "string") : [],
-      experience: Array.isArray(payload.experience)
-        ? payload.experience.filter((item: unknown): item is Record<string, unknown> => !!item && typeof item === "object").map((item: Record<string, any>) => ({
-            company: typeof item.company === "string" ? item.company : "",
-            role: typeof item.role === "string" ? item.role : "",
-            period: typeof item.period === "string" ? item.period : "",
-            description: typeof item.description === "string" ? item.description : "",
-          }))
-        : [],
-      projects: Array.isArray(payload.projects)
-        ? payload.projects.filter((item: unknown): item is Record<string, unknown> => !!item && typeof item === "object").map((item: Record<string, any>) => ({
-            name: typeof item.name === "string" ? item.name : "",
-            description: typeof item.description === "string" ? item.description : "",
-            link: typeof item.link === "string" ? item.link : "",
-          }))
-        : [],
+      skills: Array.isArray(payload.skills) ? sanitizeStrings(payload.skills) : [],
+      experience: Array.isArray(payload.experience) ? sanitizeObjects(payload.experience, ["company", "role", "period", "description"]) : [],
+      projects: Array.isArray(payload.projects) ? sanitizeObjects(payload.projects, ["name", "description", "link"]) : [],
       photo: typeof payload.photo === "string" ? payload.photo.trim() : "",
+      education: Array.isArray(payload.education) ? sanitizeObjects(payload.education, ["degree", "institution", "year", "gpa", "project"]) : [],
+      trainings: Array.isArray(payload.trainings) ? sanitizeObjects(payload.trainings, ["company", "date", "description"]) : [],
+      achievements: Array.isArray(payload.achievements) ? sanitizeObjects(payload.achievements, ["title", "description"]) : [],
+      languages: Array.isArray(payload.languages) ? sanitizeObjects(payload.languages, ["name", "level"]) : [],
+      maritalStatus: typeof payload.maritalStatus === "string" ? payload.maritalStatus.trim() : "",
+      dateOfBirth: typeof payload.dateOfBirth === "string" ? payload.dateOfBirth.trim() : "",
+      nationality: typeof payload.nationality === "string" ? payload.nationality.trim() : "",
+      militaryStatus: typeof payload.militaryStatus === "string" ? payload.militaryStatus.trim() : "",
     };
 
     if (!sanitizedPayload.name || !sanitizedPayload.title) {

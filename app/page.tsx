@@ -5,6 +5,10 @@ import { ProfileWidget } from "../components/profile-widget";
 import { AboutSection } from "../components/sections/AboutSection";
 import { ProjectsSection } from "../components/sections/ProjectsSection";
 import { ExperienceSection } from "../components/sections/ExperienceSection";
+import { EducationSection } from "../components/sections/EducationSection";
+import { TrainingsSection } from "../components/sections/TrainingsSection";
+import { AchievementsSection } from "../components/sections/AchievementsSection";
+import { LanguagesSection } from "../components/sections/LanguagesSection";
 import { ContactForm } from "../components/contact-form";
 import type { Profile } from "../types/profile";
 import { Sparkles, Cpu } from "lucide-react";
@@ -54,6 +58,10 @@ export default function HomePage() {
       <div className="space-y-12 max-w-4xl mx-auto">
         <AboutSection profile={profile} />
         <ExperienceSection profile={profile} />
+        <TrainingsSection profile={profile} />
+        <EducationSection profile={profile} />
+        <AchievementsSection profile={profile} />
+        <LanguagesSection profile={profile} />
         <ProjectsSection profile={profile} />
       </div>
 
