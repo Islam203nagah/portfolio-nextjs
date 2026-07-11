@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getFile, updateFile } from "../../../lib/github";
+import { getFile, writeJSONBatch } from "../../../lib/github";
 import { z } from "zod";
 import { getToken } from "../../../lib/token";
 
@@ -103,15 +103,8 @@ export async function POST(request: Request) {
       }
     }
 
-    // Get latest SHAs for all files in parallel
-    const shaEntries = await Promise.all(
-      sections.map(s => getFile(s.path).then(f => ({ path: s.path, sha: f?.sha || "" })))
-    );
-
-    // Write all sections in parallel
-    await Promise.all(
-      sections.map((s, i) => updateFile(s.path, s.data, "Update profile", shaEntries[i].sha))
-    );
+    // Write all sections in a single commit (avoids SHA conflicts)
+    await writeJSONBatch(sections, "Update portfolio — " + new Date().toISOString().split("T")[0]);
 
     return NextResponse.json({ ok: true, message: "Profile updated successfully" });
   } catch (error) {

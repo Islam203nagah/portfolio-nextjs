@@ -138,3 +138,69 @@ export async function updateFile(
     console.error(`[updateFile] GitHub write error for ${path}: ${error instanceof Error ? error.message : error}`);
   }
 }
+
+/**
+ * Writes multiple files in a single commit using the Git Data API (no SHA conflicts).
+ */
+export async function writeJSONBatch(files: { path: string; content: any }[], message: string) {
+  // Also write locally
+  for (const { path, content } of files) {
+    try {
+      const localPath = require("node:path").join(process.cwd(), "data", require("node:path").basename(path));
+      require("node:fs").writeFileSync(localPath, JSON.stringify(content, null, 2) + "\n", "utf-8");
+    } catch { /* skip */ }
+  }
+
+  try {
+    // Get the latest commit SHA for the branch
+    const { data: refData } = await octokit.git.getRef({ owner, repo, ref: `heads/${branch}` });
+    const latestCommitSha = refData.object.sha;
+
+    // Get the tree from the latest commit
+    const { data: commitData } = await octokit.git.getCommit({ owner, repo, commit_sha: latestCommitSha });
+    const baseTreeSha = commitData.tree.sha;
+
+    // Create blobs and tree entries for each file
+    const treeEntries = await Promise.all(
+      files.map(async ({ path, content }) => {
+        const stringified = JSON.stringify(content, null, 2);
+        const { data: blob } = await octokit.git.createBlob({
+          owner,
+          repo,
+          content: stringified,
+          encoding: "utf-8",
+        });
+        return { path, mode: "100644" as const, type: "blob" as const, sha: blob.sha };
+      })
+    );
+
+    // Create a new tree
+    const { data: newTree } = await octokit.git.createTree({
+      owner,
+      repo,
+      base_tree: baseTreeSha,
+      tree: treeEntries,
+    });
+
+    // Create a commit
+    const { data: newCommit } = await octokit.git.createCommit({
+      owner,
+      repo,
+      message,
+      tree: newTree.sha,
+      parents: [latestCommitSha],
+    });
+
+    // Update the branch reference
+    await octokit.git.updateRef({
+      owner,
+      repo,
+      ref: `heads/${branch}`,
+      sha: newCommit.sha,
+    });
+
+    console.log(`[writeJSONBatch] Success, commit: ${newCommit.sha}`);
+  } catch (error) {
+    console.error(`[writeJSONBatch] Error: ${error instanceof Error ? error.message : error}`);
+  }
+}
