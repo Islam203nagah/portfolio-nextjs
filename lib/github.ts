@@ -30,7 +30,7 @@ export async function getFile(path: string): Promise<GitHubFile | null> {
     const res = await fetch(rawUrl);
     if (res.ok) {
       const content = await res.text();
-      // Fetch SHA separately for small files, use empty SHA for large files
+      // Fetch SHA via Octokit
       let sha = "";
       try {
         const { data } = await octokit.repos.getContent({ owner, repo, path, ref: branch });
@@ -54,7 +54,9 @@ export async function getFile(path: string): Promise<GitHubFile | null> {
     });
 
     if (Array.isArray(data) || !("content" in data)) {
-      return null;
+      // If data is returned but empty content, fall back to raw
+      if (Array.isArray(data) || !('sha' in data)) return null;
+      return { content: "", sha: (data as any).sha };
     }
 
     return {
@@ -109,7 +111,7 @@ export async function updateFile(
     const stringifiedContent = JSON.stringify(content, null, 2);
     const contentBase64 = Buffer.from(stringifiedContent).toString("base64");
 
-    // Fetch the latest SHA if not provided (handles missing SHAs from local fallback)
+    // Fetch the latest SHA if not provided
     let sha = currentSha;
     if (!sha) {
       try {
@@ -117,12 +119,12 @@ export async function updateFile(
         if (!Array.isArray(data) && 'sha' in data) {
           sha = data.sha;
         }
-      } catch {
-        // file doesn't exist yet, creation without SHA is fine
+      } catch (e: any) {
+        console.warn(`[updateFile] Could not fetch SHA for ${path}: ${e.message}`);
       }
     }
 
-    await octokit.repos.createOrUpdateFileContents({
+    const result = await octokit.repos.createOrUpdateFileContents({
       owner,
       repo,
       path,
@@ -131,7 +133,8 @@ export async function updateFile(
       sha,
       branch,
     });
+    console.log(`[updateFile] Successfully wrote ${path}, commit: ${result.data?.commit?.sha}`);
   } catch (error) {
-    console.warn(`GitHub write error for ${path}: ${error instanceof Error ? error.message : error}`);
+    console.error(`[updateFile] GitHub write error for ${path}: ${error instanceof Error ? error.message : error}`);
   }
 }
