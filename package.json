@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@octokit/rest": "^21.0.1",
+    "@vercel/kv": "^3.0.0",
     "axios": "^1.18.1",
     "lucide-react": "^0.484.0",
     "next": "^16.2.10",
