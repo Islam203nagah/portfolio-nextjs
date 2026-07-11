@@ -80,16 +80,29 @@ export async function updateFile(
     const stringifiedContent = JSON.stringify(content, null, 2);
     const contentBase64 = Buffer.from(stringifiedContent).toString("base64");
 
+    // Fetch the latest SHA if not provided (handles missing SHAs from local fallback)
+    let sha = currentSha;
+    if (!sha) {
+      try {
+        const { data } = await octokit.repos.getContent({ owner, repo, path, ref: branch });
+        if (!Array.isArray(data) && 'sha' in data) {
+          sha = data.sha;
+        }
+      } catch {
+        // file doesn't exist yet, creation without SHA is fine
+      }
+    }
+
     await octokit.repos.createOrUpdateFileContents({
       owner,
       repo,
       path,
       message,
       content: contentBase64,
-      sha: currentSha,
+      sha,
       branch,
     });
   } catch (error) {
-    console.warn(`GitHub write error for ${path}, saved locally only`);
+    console.warn(`GitHub write error for ${path}: ${error instanceof Error ? error.message : error}`);
   }
 }
