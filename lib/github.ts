@@ -24,7 +24,27 @@ interface GitHubFile {
  * @returns A promise that resolves to the file content and SHA, or null if not found.
  */
 export async function getFile(path: string): Promise<GitHubFile | null> {
-  // Try GitHub first
+  // Try raw.githubusercontent.com first (handles files > 1MB)
+  try {
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+    const res = await fetch(rawUrl);
+    if (res.ok) {
+      const content = await res.text();
+      // Fetch SHA separately for small files, use empty SHA for large files
+      let sha = "";
+      try {
+        const { data } = await octokit.repos.getContent({ owner, repo, path, ref: branch });
+        if (!Array.isArray(data) && 'sha' in data) {
+          sha = data.sha;
+        }
+      } catch { /* sha not critical */ }
+      return { content, sha };
+    }
+  } catch (error: any) {
+    console.warn(`Raw fetch error for ${path}: ${error.message}`);
+  }
+
+  // Fallback to Octokit API
   try {
     const { data } = await octokit.repos.getContent({
       owner,
