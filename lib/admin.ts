@@ -1,5 +1,4 @@
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "crypto";
-import clientPromise from "./mongodb";
 
 const ACCESS_TOKEN_TTL_MS = 1000 * 60 * 15; // 15 minutes
 const REFRESH_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
@@ -47,7 +46,7 @@ export function verifyJwt(token: string): { username: string } | null {
 
     const payload = JSON.parse(Buffer.from(part2, "base64").toString("utf-8"));
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
-      return null; // Expired
+      return null;
     }
     return payload as { username: string };
   } catch {
@@ -60,17 +59,7 @@ export function hashAdminPassword(password: string): string {
   return scryptSync(password, PEPPER, 64).toString("hex");
 }
 
-async function getStoredHash(username: string): Promise<string> {
-  try {
-    const client = await clientPromise;
-    const db = client.db("Portfiolo");
-    const doc = await db.collection("admin_settings").findOne({ key: "password" }) as Record<string, unknown> | null;
-    if (doc && typeof doc.hash === "string" && doc.username === username) {
-      return doc.hash;
-    }
-  } catch {
-    // Fallback to env
-  }
+function getStoredHash(username: string): string {
   return process.env.ADMIN_PASSWORD_HASH || hashAdminPassword(DEFAULT_PASSWORD);
 }
 
@@ -83,7 +72,7 @@ export async function verifyAdminCredentials(
   const expectedUsername = process.env.ADMIN_USERNAME || DEFAULT_USERNAME;
   if (username !== expectedUsername) return false;
 
-  const expectedHash = await getStoredHash(username);
+  const expectedHash = getStoredHash(username);
   const providedHash = hashAdminPassword(password);
 
   const expectedBuffer = Buffer.from(expectedHash, "hex");
@@ -93,72 +82,29 @@ export async function verifyAdminCredentials(
   return timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
-/* ─── Database-Backed Refresh & Access Token flow ─────────────── */
-
-export async function createDatabaseSession(username: string): Promise<{ accessToken: string; refreshToken: string }> {
-  const accessToken = signJwt({ username }, ACCESS_TOKEN_TTL_MS);
-  const refreshToken = randomBytes(40).toString("hex");
-
-  const client = await clientPromise;
-  const db = client.db("Portfiolo");
-
-  // Save refresh token to MongoDB
-  await db.collection("refresh_tokens").insertOne({
-    token: refreshToken,
-    username,
-    expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
-    createdAt: new Date(),
-  });
-
-  // Clean up old expired tokens while we're here (background garbage collection)
-  db.collection("refresh_tokens").deleteMany({ expiresAt: { $lt: new Date() } }).catch(() => null);
-
+/* ─── Stateless Session (no DB needed) ─────────────────────────── */
+export function createSession(username: string): { accessToken: string; refreshToken: string } {
+  const accessToken = signJwt({ username, type: "access" }, ACCESS_TOKEN_TTL_MS);
+  const refreshToken = signJwt({ username, type: "refresh" }, REFRESH_TOKEN_TTL_MS);
   return { accessToken, refreshToken };
 }
 
-export async function refreshSession(oldRefreshToken: string): Promise<{ accessToken: string; refreshToken: string } | null> {
-  const client = await clientPromise;
-  const db = client.db("Portfiolo");
-
-  // Lookup the refresh token
-  const tokenDoc = await db.collection("refresh_tokens").findOne({ token: oldRefreshToken }) as {
-    token: string;
-    username: string;
-    expiresAt: Date;
-  } | null;
-
-  if (!tokenDoc) return null;
-
-  // Check expiration
-  if (tokenDoc.expiresAt.getTime() <= Date.now()) {
-    await db.collection("refresh_tokens").deleteOne({ token: oldRefreshToken });
-    return null;
-  }
-
-  // Token is valid! Rotate it: delete old one, create new access + refresh tokens
-  await db.collection("refresh_tokens").deleteOne({ token: oldRefreshToken });
-
-  const accessToken = signJwt({ username: tokenDoc.username }, ACCESS_TOKEN_TTL_MS);
-  const refreshToken = randomBytes(40).toString("hex");
-
-  await db.collection("refresh_tokens").insertOne({
-    token: refreshToken,
-    username: tokenDoc.username,
-    expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
-    createdAt: new Date(),
-  });
-
-  return { accessToken, refreshToken };
+export function verifyRefreshToken(token: string): { username: string } | null {
+  const payload = verifyJwt(token);
+  if (!payload) return null;
+  return (payload as any).type === "refresh" ? payload : null;
 }
 
-export async function clearDatabaseSession(refreshToken: string): Promise<void> {
-  try {
-    const client = await clientPromise;
-    const db = client.db("Portfiolo");
-    await db.collection("refresh_tokens").deleteOne({ token: refreshToken });
-  } catch {
-    // Ignore error
-  }
+export function refreshSession(
+  oldRefreshToken: string
+): { accessToken: string; refreshToken: string } | null {
+  const payload = verifyRefreshToken(oldRefreshToken);
+  if (!payload) return null;
+  return createSession(payload.username);
+}
+
+export function clearDatabaseSession(_refreshToken: string): void {
+  // Stateless — nothing to clear on the server
 }
 
 export function getAdminUserFromRequest(request: Request): string | null {

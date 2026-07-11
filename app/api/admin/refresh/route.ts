@@ -19,24 +19,20 @@ export async function POST(request: Request) {
 
     const oldRefreshToken = cookies[REFRESH_COOKIE_NAME];
     if (!oldRefreshToken) {
-      return NextResponse.json({ ok: false, error: "No refresh token provided" }, { status: 401 });
+      return NextResponse.json({ ok: false, error: "No refresh token" }, { status: 401 });
     }
 
-    const rotatedSession = await refreshSession(oldRefreshToken);
-    if (!rotatedSession) {
-      // Invalid or expired refresh token
-      const response = NextResponse.json({ ok: false, error: "Session expired or invalid" }, { status: 401 });
-      
-      // Clear cookies
+    const rotated = refreshSession(oldRefreshToken);
+    if (!rotated) {
+      const response = NextResponse.json({ ok: false, error: "Session expired" }, { status: 401 });
       response.cookies.set({ name: ACCESS_COOKIE_NAME, value: "", maxAge: 0, path: "/" });
       response.cookies.set({ name: REFRESH_COOKIE_NAME, value: "", maxAge: 0, path: "/" });
       return response;
     }
 
-    const { accessToken, refreshToken } = rotatedSession;
+    const { accessToken, refreshToken } = rotated;
     const response = NextResponse.json({ ok: true });
 
-    // Set new Access Token (15 min)
     response.cookies.set({
       name: ACCESS_COOKIE_NAME,
       value: accessToken,
@@ -47,7 +43,6 @@ export async function POST(request: Request) {
       maxAge: Math.floor(ACCESS_TOKEN_TTL_MS / 1000),
     });
 
-    // Set rotated Refresh Token (7 days)
     response.cookies.set({
       name: REFRESH_COOKIE_NAME,
       value: refreshToken,
