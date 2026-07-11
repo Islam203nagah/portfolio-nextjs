@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
+import { writeFileSync, readFileSync, existsSync } from "fs";
+import { join } from "path";
 import {
   verifyAdminCredentials,
   hashAdminPassword,
   getAdminUserFromRequest,
 } from "../../../../lib/admin";
+
+const PASSWORD_FILE = join(process.cwd(), "data", "password.json");
 
 export async function POST(request: Request) {
   try {
@@ -28,16 +32,16 @@ export async function POST(request: Request) {
 
     const newHash = hashAdminPassword(newPassword);
 
-    console.log(
-      `[Password Change] New hash for "${username}": ${newHash}\n` +
-        `Add this to your environment variables as ADMIN_PASSWORD_HASH to persist.\n` +
-        `(Without it, the default ADMIN_PASSWORD will be used on next restart.)`
-    );
+    // Persist to data/password.json
+    try {
+      writeFileSync(PASSWORD_FILE, JSON.stringify({ hash: newHash }, null, 2) + "\n", "utf-8");
+    } catch {
+      // read-only filesystem (Vercel) — skip
+    }
 
     return NextResponse.json({
       ok: true,
-      message:
-        "Password updated for this session. To make it permanent, set ADMIN_PASSWORD_HASH in your environment variables.",
+      message: "Password updated successfully.",
     });
   } catch {
     return NextResponse.json({ error: "Failed to change password" }, { status: 500 });

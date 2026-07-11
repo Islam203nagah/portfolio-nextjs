@@ -3,9 +3,18 @@ import { getFile, updateFile } from "../../../lib/github";
 import { z } from "zod";
 import { getToken } from "../../../lib/token";
 
-const PROFILE_PATH = "data/profile.json";
+const FILES = [
+  "profile.json",
+  "skills.json",
+  "experience.json",
+  "education.json",
+  "trainings.json",
+  "projects.json",
+  "achievements.json",
+  "languages.json",
+];
 
-const profileSchema = z.object({
+const scalarSchema = z.object({
   name: z.string().min(1),
   title: z.string().min(1),
   location: z.string().min(1),
@@ -20,14 +29,36 @@ const profileSchema = z.object({
   militaryStatus: z.string().optional(),
 });
 
+async function readJSON(path: string): Promise<any | null> {
+  const file = await getFile(path);
+  if (!file) return null;
+  try {
+    return JSON.parse(file.content);
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   try {
-    const file = await getFile(PROFILE_PATH);
-    if (!file) {
+    const [profile, skills, experience, education, trainings, projects, achievements, languages] = await Promise.all(
+      FILES.map(f => readJSON(`data/${f}`))
+    );
+
+    if (!profile) {
       return NextResponse.json({ error: "Profile data not found." }, { status: 404 });
     }
-    const profileData = JSON.parse(file.content);
-    return NextResponse.json(profileData);
+
+    return NextResponse.json({
+      ...profile,
+      skills: Array.isArray(skills) ? skills : [],
+      experience: Array.isArray(experience) ? experience : [],
+      education: Array.isArray(education) ? education : [],
+      trainings: Array.isArray(trainings) ? trainings : [],
+      projects: Array.isArray(projects) ? projects : [],
+      achievements: Array.isArray(achievements) ? achievements : [],
+      languages: Array.isArray(languages) ? languages : [],
+    });
   } catch (error) {
     console.error("GET /api/profile error:", error);
     return NextResponse.json({ error: "Failed to fetch profile data." }, { status: 500 });
@@ -42,17 +73,46 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    // Accept either { data: {...} } or just {...} directly
     const payload = body.data || body;
-    const validation = profileSchema.safeParse(payload);
+
+    // Validate only scalar fields
+    const validation = scalarSchema.safeParse(payload);
     if (!validation.success) {
       return NextResponse.json({ error: "Invalid data", details: validation.error.flatten() }, { status: 400 });
     }
 
-    const file = await getFile(PROFILE_PATH);
-    const sha = file?.sha || "";
+    // Write each section to its own file
+    const sections: { path: string; data: any }[] = [
+      { path: "data/profile.json", data: validation.data },
+    ];
 
-    await updateFile(PROFILE_PATH, validation.data, "Update profile data", sha);
+    const arrays: [string, string][] = [
+      ["skills", "skills.json"],
+      ["experience", "experience.json"],
+      ["education", "education.json"],
+      ["trainings", "trainings.json"],
+      ["projects", "projects.json"],
+      ["achievements", "achievements.json"],
+      ["languages", "languages.json"],
+    ];
+
+    for (const [key, file] of arrays) {
+      const value = payload[key];
+      if (value !== undefined) {
+        sections.push({ path: "data/" + file, data: Array.isArray(value) ? value : [] });
+      }
+    }
+
+    // Get latest SHAs for all files in parallel
+    const shaEntries = await Promise.all(
+      sections.map(s => getFile(s.path).then(f => ({ path: s.path, sha: f?.sha || "" })))
+    );
+
+    // Write all sections in parallel
+    await Promise.all(
+      sections.map((s, i) => updateFile(s.path, s.data, "Update profile", shaEntries[i].sha))
+    );
+
     return NextResponse.json({ ok: true, message: "Profile updated successfully" });
   } catch (error) {
     console.error("POST /api/profile error:", error);

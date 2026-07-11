@@ -1,4 +1,6 @@
-import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "crypto";
+import { scryptSync, timingSafeEqual, createHmac } from "crypto";
+import { readFileSync, existsSync } from "fs";
+import { join } from "path";
 
 const ACCESS_TOKEN_TTL_MS = 1000 * 60 * 15; // 15 minutes
 const REFRESH_TOKEN_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
@@ -60,6 +62,16 @@ export function hashAdminPassword(password: string): string {
 }
 
 function getStoredHash(username: string): string {
+  // First check data/password.json (persisted via change-password endpoint)
+  try {
+    const p = join(process.cwd(), "data", "password.json");
+    if (existsSync(p)) {
+      const content = JSON.parse(readFileSync(p, "utf-8"));
+      if (content.hash) return content.hash;
+    }
+  } catch {
+    // ignore
+  }
   return process.env.ADMIN_PASSWORD_HASH || hashAdminPassword(DEFAULT_PASSWORD);
 }
 
