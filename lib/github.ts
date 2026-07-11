@@ -34,7 +34,12 @@ export async function readJSON<T>(path: string): Promise<T> {
 
   const data = await res.json();
   const content = Buffer.from(data.content, "base64").toString("utf-8");
-  return JSON.parse(content) as T;
+  try {
+    return JSON.parse(content) as T;
+  } catch {
+    console.warn(`Corrupt JSON in ${path}, returning empty fallback`);
+    return {} as T;
+  }
 }
 
 /* ─── Single-commit batch write ───────────────────────────────── */
