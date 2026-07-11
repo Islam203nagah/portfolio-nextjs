@@ -1,137 +1,95 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
+import { Octokit } from "@octokit/rest";
 
-const DATA_DIR = path.join(process.cwd(), "data");
+const octokit = new Octokit({
+  auth: process.env.GITHUB_TOKEN,
+});
 
-const OWNER = process.env.GITHUB_OWNER || "";
-const REPO = process.env.GITHUB_REPO || "";
-const BRANCH = process.env.GITHUB_BRANCH || "main";
-const TOKEN = process.env.GITHUB_TOKEN || "";
+const owner = process.env.GITHUB_OWNER!;
+const repo = process.env.GITHUB_REPO!;
+const branch = process.env.GITHUB_BRANCH || 'main';
 
-const API_BASE = "https://api.github.com";
-
-function headers() {
-  return {
-    Authorization: `Bearer ${TOKEN}`,
-    Accept: "application/vnd.github+json",
-    "User-Agent": "portfolio-admin",
-  };
+interface GitHubFile {
+  content: string;
+  sha: string;
 }
 
-/** Read from GitHub API; fallback to local files on error */
-export async function readJSON<T>(ghPath: string): Promise<T> {
-  // In production (Vercel), try GitHub first
-  if (TOKEN) {
-    try {
-      const url = `${API_BASE}/repos/${OWNER}/${REPO}/contents/${ghPath}?ref=${BRANCH}`;
-      const res = await fetch(url, { headers: headers() });
-
-      if (res.status === 404) return {} as T;
-
-      if (res.ok) {
-        const data = await res.json();
-        const content = Buffer.from(data.content, "base64").toString("utf-8");
-        try {
-          return JSON.parse(content) as T;
-        } catch {
-          console.warn(`Corrupt JSON in ${ghPath}, returning empty fallback`);
-          return {} as T;
-        }
-      }
-    } catch {
-      // fall through to local
-    }
-  }
-
-  // Local fallback
-  const localFilePath = path.join(DATA_DIR, path.basename(ghPath));
+/**
+ * Fetches the content and SHA of a file from the GitHub repository.
+ * @param path - The path to the file in the repository (e.g., 'data/profile.json').
+ * @returns A promise that resolves to the file content and SHA, or null if not found.
+ */
+export async function getFile(path: string): Promise<GitHubFile | null> {
+  // Local fallback: read from data/ directory
   try {
-    const localContent = fs.readFileSync(localFilePath, "utf-8");
-    return JSON.parse(localContent) as T;
+    const localPath = require("node:path").join(process.cwd(), "data", require("node:path").basename(path));
+    const content = require("node:fs").readFileSync(localPath, "utf-8");
+    return { content, sha: "" };
   } catch {
-    return {} as T;
+    // not found locally either
+  }
+
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref: branch,
+    });
+
+    if (Array.isArray(data) || !("content" in data)) {
+      return null;
+    }
+
+    return {
+      content: Buffer.from(data.content, "base64").toString("utf-8"),
+      sha: data.sha,
+    };
+  } catch (error: any) {
+    if (error.status === 404) {
+      console.warn(`File not found in GitHub repo: ${path}`);
+      return null;
+    }
+    console.warn(`GitHub API error for ${path}, using empty fallback`);
+    return null;
   }
 }
 
-/* ─── Single-commit batch write (fallback to local) ───────────── */
-export async function writeJSONBatch(
-  files: { path: string; data: unknown }[],
-  commitMessage: string
-): Promise<void> {
-  if (!files.length) return;
-
-  // Always write to local files first
-  for (const file of files) {
-    const localPath = path.join(DATA_DIR, path.basename(file.path));
-    try {
-      fs.writeFileSync(localPath, JSON.stringify(file.data, null, 2) + "\n", "utf-8");
-    } catch (e) {
-      console.warn(`Failed to write local ${localPath}:`, e);
-    }
+/**
+ * Updates a file in the GitHub repository by creating a new commit.
+ * @param path - The path to the file to update.
+ * @param content - The new content for the file (will be stringified).
+ * @param message - The commit message.
+ * @param currentSha - The current SHA of the file to avoid conflicts.
+ * @returns A promise that resolves when the commit is created.
+ */
+export async function updateFile(
+  path: string,
+  content: any,
+  message: string,
+  currentSha: string
+) {
+  // Always write to local file
+  try {
+    const localPath = require("node:path").join(process.cwd(), "data", require("node:path").basename(path));
+    require("node:fs").writeFileSync(localPath, JSON.stringify(content, null, 2) + "\n", "utf-8");
+  } catch {
+    // read-only filesystem (Vercel) — skip
   }
 
-  // Try GitHub; silently skip if unavailable
-  if (!TOKEN) return;
-
   try {
-    const refUrl = `${API_BASE}/repos/${OWNER}/${REPO}/git/refs/heads/${BRANCH}`;
-    const refRes = await fetch(refUrl, { headers: headers() });
-    if (!refRes.ok) return;
-    const refData = await refRes.json();
-    const headSha: string = refData.object.sha;
+    const stringifiedContent = JSON.stringify(content, null, 2);
+    const contentBase64 = Buffer.from(stringifiedContent).toString("base64");
 
-    const commitUrl = `${API_BASE}/repos/${OWNER}/${REPO}/git/commits/${headSha}`;
-    const commitRes = await fetch(commitUrl, { headers: headers() });
-    if (!commitRes.ok) return;
-    const commitData = await commitRes.json();
-    const baseTreeSha: string = commitData.tree.sha;
-
-    const treeEntries: { path: string; mode: "100644"; type: "blob"; sha: string }[] = [];
-    for (const file of files) {
-      const content = JSON.stringify(file.data, null, 2);
-      const blobRes = await fetch(
-        `${API_BASE}/repos/${OWNER}/${REPO}/git/blobs`,
-        {
-          method: "POST",
-          headers: { ...headers(), "Content-Type": "application/json" },
-          body: JSON.stringify({ content, encoding: "utf-8" }),
-        }
-      );
-      if (!blobRes.ok) return;
-      const blobData = await blobRes.json();
-      treeEntries.push({ path: file.path, mode: "100644", type: "blob", sha: blobData.sha });
-    }
-
-    const treeRes = await fetch(
-      `${API_BASE}/repos/${OWNER}/${REPO}/git/trees`,
-      {
-        method: "POST",
-        headers: { ...headers(), "Content-Type": "application/json" },
-        body: JSON.stringify({ base_tree: baseTreeSha, tree: treeEntries }),
-      }
-    );
-    if (!treeRes.ok) return;
-    const treeData = await treeRes.json();
-    const newTreeSha: string = treeData.sha;
-
-    const newCommitRes = await fetch(
-      `${API_BASE}/repos/${OWNER}/${REPO}/git/commits`,
-      {
-        method: "POST",
-        headers: { ...headers(), "Content-Type": "application/json" },
-        body: JSON.stringify({ message: commitMessage, tree: newTreeSha, parents: [headSha] }),
-      }
-    );
-    if (!newCommitRes.ok) return;
-    const newCommitData = await newCommitRes.json();
-    const newCommitSha: string = newCommitData.sha;
-
-    await fetch(refUrl, {
-      method: "PATCH",
-      headers: { ...headers(), "Content-Type": "application/json" },
-      body: JSON.stringify({ sha: newCommitSha, force: false }),
+    await octokit.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path,
+      message,
+      content: contentBase64,
+      sha: currentSha,
+      branch,
     });
-  } catch (e) {
-    console.warn("GitHub write skipped — API unavailable:", e);
+  } catch (error) {
+    console.warn(`GitHub write error for ${path}, saved locally only`);
   }
 }

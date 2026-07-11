@@ -1,169 +1,61 @@
 import { NextResponse } from "next/server";
-import { getAdminUserFromRequest } from "../../../lib/admin";
-import { readJSON, writeJSONBatch } from "../../../lib/github";
+import { getFile, updateFile } from "../../../lib/github";
+import { z } from "zod";
+import { getToken } from "../../../lib/token";
 
-const DATA_PREFIX = "data";
+const PROFILE_PATH = "data/profile.json";
 
-const FILES = {
-  profile: `${DATA_PREFIX}/profile.json`,
-  experience: `${DATA_PREFIX}/experience.json`,
-  education: `${DATA_PREFIX}/education.json`,
-  trainings: `${DATA_PREFIX}/trainings.json`,
-  projects: `${DATA_PREFIX}/projects.json`,
-  skills: `${DATA_PREFIX}/skills.json`,
-  achievements: `${DATA_PREFIX}/achievements.json`,
-  languages: `${DATA_PREFIX}/languages.json`,
-} as const;
-
-const sanitizeStrings = (arr: unknown[]) =>
-  arr.filter((s): s is string => typeof s === "string");
-
-const sanitizeObjects = (arr: unknown[], fields: string[]) =>
-  arr
-    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
-    .map((item: Record<string, any>) => {
-      const obj: Record<string, string> = {};
-      for (const f of fields) obj[f] = typeof item[f] === "string" ? item[f] : "";
-      return obj;
-    });
+const profileSchema = z.object({
+  name: z.string().min(1),
+  title: z.string().min(1),
+  location: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  linkedIn: z.string().url().optional(),
+  summary: z.string().min(1),
+  photo: z.string().optional(),
+  maritalStatus: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  nationality: z.string().optional(),
+  militaryStatus: z.string().optional(),
+});
 
 export async function GET() {
   try {
-    const [profile, experience, education, trainings, projects, skills, achievements, languages] =
-      await Promise.all([
-        readJSON<any>(FILES.profile),
-        readJSON<any[]>(FILES.experience),
-        readJSON<any[]>(FILES.education),
-        readJSON<any[]>(FILES.trainings),
-        readJSON<any[]>(FILES.projects),
-        readJSON<any[]>(FILES.skills),
-        readJSON<any[]>(FILES.achievements),
-        readJSON<any[]>(FILES.languages),
-      ]);
-
-    return NextResponse.json({
-      name: profile.name || "",
-      title: profile.title || "",
-      location: profile.location || "",
-      email: profile.email || "",
-      linkedIn: profile.linkedIn || "",
-      phone: profile.phone || "",
-      summary: profile.summary || "",
-      photo: profile.photo || "",
-      maritalStatus: profile.maritalStatus || "",
-      dateOfBirth: profile.dateOfBirth || "",
-      nationality: profile.nationality || "",
-      militaryStatus: profile.militaryStatus || "",
-      skills: Array.isArray(skills) ? skills : [],
-      experience: Array.isArray(experience) ? experience : [],
-      education: Array.isArray(education) ? education : [],
-      trainings: Array.isArray(trainings) ? trainings : [],
-      projects: Array.isArray(projects) ? projects : [],
-      achievements: Array.isArray(achievements) ? achievements : [],
-      languages: Array.isArray(languages) ? languages : [],
-    });
-  } catch (err) {
-    console.error("GitHub read error:", err);
-    return NextResponse.json({ error: "Could not read profile" }, { status: 500 });
+    const file = await getFile(PROFILE_PATH);
+    if (!file) {
+      return NextResponse.json({ error: "Profile data not found." }, { status: 404 });
+    }
+    const profileData = JSON.parse(file.content);
+    return NextResponse.json(profileData);
+  } catch (error) {
+    console.error("GET /api/profile error:", error);
+    return NextResponse.json({ error: "Failed to fetch profile data." }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
+  const token = await getToken({ req: request });
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
-    const username = getAdminUserFromRequest(request);
-    if (!username) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const body = await request.json();
+    // Accept either { data: {...} } or just {...} directly
+    const payload = body.data || body;
+    const validation = profileSchema.safeParse(payload);
+    if (!validation.success) {
+      return NextResponse.json({ error: "Invalid data", details: validation.error.flatten() }, { status: 400 });
     }
 
-    const payload = await request.json();
-    if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-      return NextResponse.json({ error: "Invalid profile payload" }, { status: 400 });
-    }
+    const file = await getFile(PROFILE_PATH);
+    const sha = file?.sha || "";
 
-    const str = (key: string) =>
-      typeof payload[key] === "string" ? payload[key].trim() : "";
-
-    const profile = {
-      name: str("name"),
-      title: str("title"),
-      location: str("location"),
-      email: str("email"),
-      linkedIn: str("linkedIn"),
-      phone: str("phone"),
-      summary: str("summary"),
-      photo: str("photo"),
-      maritalStatus: str("maritalStatus"),
-      dateOfBirth: str("dateOfBirth"),
-      nationality: str("nationality"),
-      militaryStatus: str("militaryStatus"),
-    };
-
-    if (!profile.name || !profile.title) {
-      return NextResponse.json({ error: "Name and title are required" }, { status: 400 });
-    }
-
-    if (profile.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.email)) {
-      return NextResponse.json({ error: "Email must be a valid address" }, { status: 400 });
-    }
-
-    if (profile.linkedIn && !/^https?:\/\//i.test(profile.linkedIn)) {
-      return NextResponse.json({ error: "LinkedIn must be a valid URL" }, { status: 400 });
-    }
-
-    const experience = sanitizeObjects(
-      Array.isArray(payload.experience) ? payload.experience : [],
-      ["company", "role", "period", "description"]
-    );
-
-    const education = sanitizeObjects(
-      Array.isArray(payload.education) ? payload.education : [],
-      ["degree", "institution", "year", "gpa", "project"]
-    );
-
-    const trainings = sanitizeObjects(
-      Array.isArray(payload.trainings) ? payload.trainings : [],
-      ["company", "date", "description"]
-    );
-
-    const projects = sanitizeObjects(
-      Array.isArray(payload.projects) ? payload.projects : [],
-      ["name", "description", "link"]
-    );
-
-    const skills = sanitizeStrings(
-      Array.isArray(payload.skills) ? payload.skills : []
-    );
-
-    const achievements = sanitizeObjects(
-      Array.isArray(payload.achievements) ? payload.achievements : [],
-      ["title", "description"]
-    );
-
-    const languages = sanitizeObjects(
-      Array.isArray(payload.languages) ? payload.languages : [],
-      ["name", "level"]
-    );
-
-    const date = new Date().toISOString().slice(0, 10);
-    const time = new Date().toISOString().slice(11, 19);
-
-    await writeJSONBatch(
-      [
-        { path: FILES.profile, data: profile },
-        { path: FILES.experience, data: experience },
-        { path: FILES.education, data: education },
-        { path: FILES.trainings, data: trainings },
-        { path: FILES.projects, data: projects },
-        { path: FILES.skills, data: skills },
-        { path: FILES.achievements, data: achievements },
-        { path: FILES.languages, data: languages },
-      ],
-      `Update portfolio from admin panel — ${date} ${time}`
-    );
-
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    console.error("GitHub write error:", err);
-    return NextResponse.json({ error: "Could not write profile" }, { status: 500 });
+    await updateFile(PROFILE_PATH, validation.data, "Update profile data", sha);
+    return NextResponse.json({ ok: true, message: "Profile updated successfully" });
+  } catch (error) {
+    console.error("POST /api/profile error:", error);
+    return NextResponse.json({ error: "Failed to update profile." }, { status: 500 });
   }
 }
