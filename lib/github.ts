@@ -44,14 +44,23 @@ export async function getFile(path: string): Promise<GitHubFile | null> {
     }
   }
 
-  // Local fallback
-  try {
-    const localPath = require("node:path").join(process.cwd(), require("node:path").dirname(path), require("node:path").basename(path));
-    const content = require("node:fs").readFileSync(localPath, "utf-8");
-    return { content, sha: "" };
-  } catch {
-    return null;
+  // Local fallback — try multiple paths
+  const pathsToTry = [
+    require("node:path").join(process.cwd(), path),
+    require("node:path").join(process.cwd(), "..", path),
+    require("node:path").join(process.cwd(), "..", "..", path),
+  ];
+  // If on Vercel, also try relative to project root
+  if (process.env.VERCEL) {
+    pathsToTry.push(require("node:path").join("/var/task", path));
   }
+  for (const localPath of pathsToTry) {
+    try {
+      const content = require("node:fs").readFileSync(localPath, "utf-8");
+      return { content, sha: "" };
+    } catch { /* try next */ }
+  }
+  return null;
 }
 
 /**
