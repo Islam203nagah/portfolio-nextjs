@@ -99,10 +99,10 @@ export async function writeJSONBatch(files: { path: string; content: any }[], _m
   const client = getClient();
   if (client) {
     try {
-      const entries: [string, string][] = files.map(({ path, content }) => [
-        KV_PREFIX + path.replace(/\//g, ":"),
-        JSON.stringify(content),
-      ]);
+      const entries: Record<string, string> = {};
+      for (const { path, content } of files) {
+        entries[KV_PREFIX + path.replace(/\//g, ":")] = JSON.stringify(content);
+      }
       await client.mset(entries);
       console.log(`[KV] Batch updated ${files.length} keys`);
     } catch (error) {
