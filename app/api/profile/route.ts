@@ -82,8 +82,8 @@ export async function POST(request: Request) {
     }
 
     // Write each section to its own file
-    const sections: { path: string; data: any }[] = [
-      { path: "data/profile.json", data: validation.data },
+    const sections: { path: string; content: any }[] = [
+      { path: "data/profile.json", content: validation.data },
     ];
 
     const arrays: [string, string][] = [
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     for (const [key, file] of arrays) {
       const value = payload[key];
       if (value !== undefined) {
-        sections.push({ path: "data/" + file, data: Array.isArray(value) ? value : [] });
+        sections.push({ path: "data/" + file, content: Array.isArray(value) ? value : [] });
       }
     }
 
