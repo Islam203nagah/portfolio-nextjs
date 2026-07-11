@@ -4,10 +4,9 @@ let kv: ReturnType<typeof createClient>;
 
 function getClient() {
   if (!kv) {
-    const url = process.env.KV_URL || process.env.KV_REST_API_URL;
+    const url = process.env.KV_REST_API_URL;
     const token = process.env.KV_REST_API_TOKEN;
     if (!url || !token) {
-      // Fallback to local dev without KV
       return null;
     }
     kv = createClient({ url, token });
