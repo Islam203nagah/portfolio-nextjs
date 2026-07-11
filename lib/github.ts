@@ -19,15 +19,7 @@ interface GitHubFile {
  * @returns A promise that resolves to the file content and SHA, or null if not found.
  */
 export async function getFile(path: string): Promise<GitHubFile | null> {
-  // Local fallback: read from data/ directory
-  try {
-    const localPath = require("node:path").join(process.cwd(), "data", require("node:path").basename(path));
-    const content = require("node:fs").readFileSync(localPath, "utf-8");
-    return { content, sha: "" };
-  } catch {
-    // not found locally either
-  }
-
+  // Try GitHub first
   try {
     const { data } = await octokit.repos.getContent({
       owner,
@@ -47,9 +39,17 @@ export async function getFile(path: string): Promise<GitHubFile | null> {
   } catch (error: any) {
     if (error.status === 404) {
       console.warn(`File not found in GitHub repo: ${path}`);
-      return null;
+    } else {
+      console.warn(`GitHub API error for ${path}: ${error.message}`);
     }
-    console.warn(`GitHub API error for ${path}, using empty fallback`);
+  }
+
+  // Local fallback
+  try {
+    const localPath = require("node:path").join(process.cwd(), require("node:path").dirname(path), require("node:path").basename(path));
+    const content = require("node:fs").readFileSync(localPath, "utf-8");
+    return { content, sha: "" };
+  } catch {
     return null;
   }
 }
