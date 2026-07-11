@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAdminUserFromRequest } from "../../../lib/admin";
-import { readJSON, writeJSON } from "../../../lib/github";
+import { readJSON, writeJSONBatch } from "../../../lib/github";
 
 const DATA_PREFIX = "data";
 
@@ -144,19 +144,22 @@ export async function POST(request: Request) {
       ["name", "level"]
     );
 
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const commitBase = `Update portfolio from admin panel — ${timestamp}`;
+    const date = new Date().toISOString().slice(0, 10);
+    const time = new Date().toISOString().slice(11, 19);
 
-    await Promise.all([
-      writeJSON(FILES.profile, profile, `${commitBase} (profile)`),
-      writeJSON(FILES.experience, experience, `${commitBase} (experience)`),
-      writeJSON(FILES.education, education, `${commitBase} (education)`),
-      writeJSON(FILES.trainings, trainings, `${commitBase} (trainings)`),
-      writeJSON(FILES.projects, projects, `${commitBase} (projects)`),
-      writeJSON(FILES.skills, skills, `${commitBase} (skills)`),
-      writeJSON(FILES.achievements, achievements, `${commitBase} (achievements)`),
-      writeJSON(FILES.languages, languages, `${commitBase} (languages)`),
-    ]);
+    await writeJSONBatch(
+      [
+        { path: FILES.profile, data: profile },
+        { path: FILES.experience, data: experience },
+        { path: FILES.education, data: education },
+        { path: FILES.trainings, data: trainings },
+        { path: FILES.projects, data: projects },
+        { path: FILES.skills, data: skills },
+        { path: FILES.achievements, data: achievements },
+        { path: FILES.languages, data: languages },
+      ],
+      `Update portfolio from admin panel — ${date} ${time}`
+    );
 
     return NextResponse.json({ ok: true });
   } catch (err) {
