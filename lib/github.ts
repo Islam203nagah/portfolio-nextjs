@@ -1,7 +1,12 @@
 import { Octokit } from "@octokit/rest";
 
+const token = process.env.GITHUB_TOKEN;
+if (!token) {
+  console.warn("[github] GITHUB_TOKEN not set — GitHub API calls will fail");
+}
+
 const octokit = new Octokit({
-  auth: process.env.GITHUB_TOKEN,
+  auth: token,
 });
 
 const owner = process.env.GITHUB_OWNER!;
@@ -44,22 +49,17 @@ export async function getFile(path: string): Promise<GitHubFile | null> {
     }
   }
 
-  // Local fallback — try multiple paths
-  const pathsToTry = [
-    require("node:path").join(process.cwd(), path),
-    require("node:path").join(process.cwd(), "..", path),
-    require("node:path").join(process.cwd(), "..", "..", path),
-  ];
-  // If on Vercel, also try relative to project root
-  if (process.env.VERCEL) {
-    pathsToTry.push(require("node:path").join("/var/task", path));
-  }
-  for (const localPath of pathsToTry) {
+  // Local fallback (only locally, not on Vercel)
+  if (!process.env.VERCEL) {
     try {
+      const localPath = require("node:path").join(process.cwd(), "data", require("node:path").basename(path));
       const content = require("node:fs").readFileSync(localPath, "utf-8");
       return { content, sha: "" };
-    } catch { /* try next */ }
+    } catch {
+      // not found
+    }
   }
+
   return null;
 }
 
